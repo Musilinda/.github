@@ -36,6 +36,14 @@ Make music literacy accessible by grounding learning in solfège — a proven, e
 - **Programmatic notation** — Music score visuals are generated with `music21` + MuseScore 4 and exported as SVG/MusicXML for lessons and blog posts.
 - **Cross-platform** — The web app is wrapped in a Capacitor iOS shell, giving a native App Store experience with RevenueCat subscriptions and AdMob advertising.
 
+## Repositories
+
+| Repository | Description |
+|---|---|
+| [app_musilinda](https://github.com/Musilinda/app_musilinda) | Full-stack web app — interactive music lessons with on-device ONNX solfège recognition. |
+| [capacitor](https://github.com/Musilinda/capacitor) | iOS native shell — Capacitor WebView with RevenueCat subscriptions and AdMob. |
+| [core](https://github.com/Musilinda/core) | Research — programmatic music notation generation and Whisper-based syllable classifier pipeline. |
+
 ## Subscription Model
 
 | Tier | Access |
