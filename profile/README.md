@@ -1,6 +1,7 @@
 # Musilinda
+Founded and maintained by Stephan Vanwoezik [@trapadulli](https://github.com/trapadulli).
 
-**Musilinda** was created by Stephan Vanwoezik to be a solfège-based music education platform that teaches pitch, intervals, scales, modes, chords, and ear training through interactive browser-based exercises and real-time AI pitch recognition.
+**Musilinda** is a solfège-based music education platform that teaches pitch, intervals, scales, modes, chords, and ear training through interactive browser-based exercises and real-time AI pitch recognition.
 
 ## Mission
 
