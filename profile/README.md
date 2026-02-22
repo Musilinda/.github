@@ -1,6 +1,6 @@
 # Musilinda
-Available on the [Apple App Store](https://apps.apple.com/us/app/musilinda/id6749832456)
 A solfège-based music education platform that teaches pitch, intervals, scales, modes, chords, and ear training through interactive browser-based exercises and real-time AI pitch recognition.
+Available on the [Apple App Store](https://apps.apple.com/us/app/musilinda/id6749832456)
 
 ## Mission
 
