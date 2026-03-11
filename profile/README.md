@@ -27,8 +27,8 @@ Make music literacy accessible by grounding learning in solfège — a proven, e
 │             app.musilinda.com               │
 │         (React SPA + Express API)           │
 │                                             │
-│  Lessons: keys, modes, intervals, chords,  │
-│  ear training, notation, chromatic solfege │
+│  Lessons: keys, modes, intervals, chords,   │
+│  ear training, notation, chromatic solfege  │
 │                                             │
 │  AI: ONNX WhisperMultiHead in-browser       │
 │  DB:  Neon PostgreSQL (Drizzle ORM)         │
