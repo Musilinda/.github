@@ -9,7 +9,8 @@ Available on the [Apple App Store](https://apps.apple.com/us/app/musilinda/id674
 | Repository | Description |
 |---|---|
 | [app_musilinda](https://github.com/Musilinda/app_musilinda) | Full-stack web app — interactive music lessons with on-device ONNX solfège recognition. |
-| [capacitor](https://github.com/Musilinda/capacitor) | iOS native shell — Capacitor WebView with RevenueCat subscriptions and AdMob. |
+| [capacitor](https://github.com/Musilinda/capacitor) | iOS native shell — Capacitor WebView with RevenueCat subscriptions and AdMob monetization. |
+| [api](https://github.com/Musilinda/api) | Flask API - WhisperMultiHeadClassifier deep learning audio inference symbol-audio pairs. |
 | [core](https://github.com/Musilinda/core) | Research — programmatic music notation generation and Whisper-based syllable classifier pipeline. |
 
 ---
