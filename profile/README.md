@@ -13,7 +13,7 @@ Available on the [Apple App Store](https://apps.apple.com/us/app/musilinda/id674
 | [api](https://github.com/Musilinda/api) | Flask API - WhisperMultiHeadClassifier deep learning inference symbol-audio pairs. |
 | [core](https://github.com/Musilinda/core) | Research — programmatic music notation generation and Whisper-based syllable classifier pipeline. |
 | [web](https://github.com/Musilinda/web.git) | Official landing page |
-| [blog]() | TODO - learning material|
+| [blog](https://github.com/Musilinda/blog) | Learning material with CMS |
 ---
 
 ## Mission
