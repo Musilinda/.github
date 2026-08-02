@@ -18,8 +18,8 @@ Available on the [Apple App Store](https://apps.apple.com/us/app/musilinda/id674
 
 ## Documentation
 
-- 📖 [Architecture](./ARCHITECTURAL_LANDSCAPE.md)
-- 🤖 [Claude Instructions](./CLAUDE.md)
+- 📖 [Architecture](../ARCHITECTURAL_LANDSCAPE.md)
+- 🤖 [Claude Instructions](../CLAUDE.md)
 
 ## Mission
 
