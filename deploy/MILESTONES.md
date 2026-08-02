@@ -194,16 +194,32 @@ verification against the live IP — the same six checks as M2, adapted for remo
 
 ## Milestone 5 — CI/CD ⬜
 
-**Scope:** `.github/workflows/deploy.yml` — on `workflow_dispatch` (manual): `terraform plan`
-on PR, `apply` on approval, using **GitHub-side secrets** (Claude documents required secret
-names; never sees values). Include a smoke-test job running the curl checks post-deploy.
+**Scope:** `.github/workflows/deploy.yml` — **triggered on push/PR to `claude/aws` only**, so
+`main` is never touched during the PoC. The workflow file lives **only on `claude/aws`** (not
+merged to main). Jobs: `terraform plan`, `apply` on approval, using **GitHub-side secrets**
+(Claude documents required secret names; never sees values). Include a smoke-test job running
+the curl checks post-deploy.
+
+```yaml
+on:
+  push:
+    branches: [claude/aws]
+  pull_request:
+    branches: [claude/aws]
+```
+
+**Why not `workflow_dispatch` yet:** the manual "Run workflow" button only works if the
+workflow file is on the repo's **default branch** (main) — a GitHub limitation. Keeping the
+PoC off main means push-triggering on `claude/aws` instead. When promoting to real use, merge
+the workflow to main and switch to `workflow_dispatch`.
 
 **Acceptance criteria**
 
 - [ ] Workflow YAML passes **actionlint**.
-- [ ] `deploy/README.md` documents required **secret names** + how the human triggers it.
+- [ ] Triggers are scoped to `claude/aws`; workflow file is not on `main` (main stays clean).
+- [ ] `deploy/README.md` documents required **secret names** + how it triggers.
 - [ ] Dry-run explanation of each job delivered.
-- [ ] Human pushes and runs it from GitHub (Claude does not).
+- [ ] Human pushes to `claude/aws` to run it (Claude does not push).
 
 **Evidence:** _(to fill: actionlint output, secret-name list, per-job explanation)_
 
@@ -213,6 +229,6 @@ names; never sees values). Include a smoke-test job running the curl checks post
 
 ## Current position
 
-**Milestone 0 (setup) — awaiting your confirmation.** Branch `claude/deploy-poc` is created
-and this doc is committed to it. On your go, I start **Milestone 1** (`deploy/bootstrap.sh`)
-and stop again at its acceptance gate. Nothing is pushed — all remote ops are yours.
+**Milestone 0 (setup) — done.** Branch is **`claude/aws`** (renamed from `claude/deploy-poc`)
+and this doc lives on it. On your go, I start **Milestone 1** (`deploy/bootstrap.sh`) and stop
+again at its acceptance gate. Nothing is pushed — all remote ops are yours.
