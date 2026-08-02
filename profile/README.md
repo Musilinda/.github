@@ -23,7 +23,7 @@ Available on the [Apple App Store](https://apps.apple.com/us/app/musilinda/id674
 
 ## Mission
 
-Make music literacy accessible by grounding learning in solfège — a proven, ear-first system that connects sound directly to notation. Every lesson is interactive: students sing, listen, and match pitches rather than just read theory.
+Make music learning accessible by grounding in solfège — proven, ear-first interactive lessons that connect listening with understanding.
 
 ---
 
