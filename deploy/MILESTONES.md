@@ -105,7 +105,7 @@ to the branch.
 
 ---
 
-## Milestone 1 — `deploy/bootstrap.sh` ⬜
+## Milestone 1 — `deploy/bootstrap.sh` 🔄 (in progress — paused)
 
 **Scope:** one idempotent script that takes a clean **Ubuntu 24.04** host to a fully running
 stack — system deps; nginx (subdomain routing per note 4); Postgres with both DBs + Drizzle
@@ -118,15 +118,31 @@ for the gitignored model files (`whisper_model/model.safetensors`, `whisper_mult
 
 **Acceptance criteria**
 
-- [ ] Script is **idempotent** (safe to re-run; no duplicate/broken state).
-- [ ] **shellcheck-clean**.
-- [ ] Every long-running service has a **systemd unit** (api, app_musilinda, blog).
-- [ ] Section-by-section walkthrough delivered to the human.
-- [ ] No VM, no AWS invoked in this milestone.
+- [~] Script is **idempotent** (safe to re-run) — written with idempotent guards; **not yet
+      verified by an actual re-run** (happens in M2).
+- [ ] **shellcheck-clean** — PENDING: shellcheck not installed on the Mac; run in the VM
+      (`apt install shellcheck`) or `brew install shellcheck` locally.
+- [x] Every long-running service has a **systemd unit** — `musilinda-api`, `musilinda-app`,
+      `musilinda-blog` (web is static, served by nginx — no unit, per note 1).
+- [x] Section-by-section walkthrough delivered to the human.
+- [x] No VM, no AWS invoked.
 
-**Evidence:** _(to fill: shellcheck output, unit file list, walkthrough)_
+**Files written on `claude/aws` (uncommitted working tree):**
+- `deploy/bootstrap.sh` — 9 sections: config → packages → user/dirs → postgres → env files →
+  sources → builds → systemd → nginx.
+- `deploy/secrets.env.example` — template (real `secrets.env` is gitignored).
+- `deploy/fetch-artifacts.sh` — stub for the two gitignored model files (pre-stage, or
+  `ARTIFACTS_BASE_URL`).
 
-**Status:** ⬜ not started.
+**Open decisions to confirm before/at M2:**
+1. Source staging = pre-stage code into the VM (no GitHub creds needed) vs set `*_REPO` to clone.
+2. Python 3.12 (Ubuntu 24.04 default) tried first; fall back to deadsnakes 3.11 if wheels break.
+3. `drizzle db:push` may prompt interactively — most likely thing to need a tweak at M2.
+4. TLS: bootstrap is HTTP-only; certbot on the real box at M4.
+5. Whisper RAM: lazy/optional model load for the local proof if the Mac is tight.
+
+**Status:** 🔄 in progress, **paused for later**. Next actions on resume: (a) run shellcheck,
+(b) confirm the 5 decisions above, (c) start M2 (launch Multipass VM, run bootstrap.sh).
 
 ---
 
@@ -229,6 +245,10 @@ the workflow to main and switch to `workflow_dispatch`.
 
 ## Current position
 
-**Milestone 0 (setup) — done.** Branch is **`claude/aws`** (renamed from `claude/deploy-poc`)
-and this doc lives on it. On your go, I start **Milestone 1** (`deploy/bootstrap.sh`) and stop
-again at its acceptance gate. Nothing is pushed — all remote ops are yours.
+**Milestone 1 — in progress, PAUSED.** Branch is **`claude/aws`** (Musilinda repo). The three
+deploy files are drafted in `deploy/` (uncommitted working tree). To resume: run shellcheck,
+confirm the 5 open decisions in the M1 section, then begin M2 (Multipass VM). Nothing is
+pushed — all remote ops are yours.
+
+_Branch layout: Musilinda + api + app_musilinda + web on `claude/aws`; blog on
+`claude/blog_storage_aws` (filesystem storage) and `claude/aws`; core + capacitor on `main`._
