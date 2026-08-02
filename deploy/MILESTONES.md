@@ -44,14 +44,14 @@ human performs every push and every cloud `apply`.
 
 ## Milestone map
 
-| # | Milestone | Gate | Status |
-|---|---|---|---|
-| 0 | Setup & rules of engagement | branch + this doc | 🔄 |
-| 1 | `deploy/bootstrap.sh` (the deploy IS this script) | no VM/AWS | ⬜ |
-| 2 | Local proof in a Multipass VM | on the Mac | ⬜ |
-| 3 | Terraform wrap (dry — plan only, no apply) | local | ⬜ |
-| 4 | The real click — live AWS apply + verify | human applies | ⬜ |
-| 5 | CI/CD — GitHub Actions workflow | human triggers | ⬜ |
+| #   | Milestone                                         | Gate              | Status |
+| --- | ------------------------------------------------- | ----------------- | ------ |
+| 0   | Setup & rules of engagement                       | branch + this doc | 🔄     |
+| 1   | `deploy/bootstrap.sh` (the deploy IS this script) | no VM/AWS         | ⬜     |
+| 2   | Local proof in a Multipass VM                     | on the Mac        | ⬜     |
+| 3   | Terraform wrap (dry — plan only, no apply)        | local             | ⬜     |
+| 4   | The real click — live AWS apply + verify          | human applies     | ⬜     |
+| 5   | CI/CD — GitHub Actions workflow                   | human triggers    | ⬜     |
 
 ---
 
@@ -91,6 +91,7 @@ carry into the work below:
 truth; rules understood and recorded.
 
 **Acceptance criteria**
+
 - [x] Branch `claude/deploy-poc` created off `main`, currently checked out.
 - [x] `deploy/MILESTONES.md` written (this file) with the 5-milestone plan, acceptance
       criteria, and rationale.
@@ -116,6 +117,7 @@ for the gitignored model files (`whisper_model/model.safetensors`, `whisper_mult
 — document options, pick the simplest.
 
 **Acceptance criteria**
+
 - [ ] Script is **idempotent** (safe to re-run; no duplicate/broken state).
 - [ ] **shellcheck-clean**.
 - [ ] Every long-running service has a **systemd unit** (api, app_musilinda, blog).
@@ -135,6 +137,7 @@ exact multipass install + launch commands (human runs them), then drives the dep
 the VM.
 
 **Acceptance criteria — each shown with real output**
+
 - [ ] (1) `bootstrap.sh` completes **exit 0** on a fresh VM.
 - [ ] (2) All systemd services **active**.
 - [ ] (3) `curl` checks pass for each service **through nginx** using `Host:` headers for
@@ -158,6 +161,7 @@ IP, `user_data` that runs `bootstrap.sh`, secrets from gitignored `terraform.tfv
 off).
 
 **Acceptance criteria**
+
 - [ ] `terraform init` + `validate` + `plan` succeed locally with **dummy tfvars**.
 - [ ] Plan output shows **exactly** the expected resources.
 - [ ] `deploy/README.md` documents the click: fill tfvars → `terraform apply` → site up.
@@ -176,6 +180,7 @@ are theirs, never echoed). Human runs `terraform apply`; Claude interprets outpu
 verification against the live IP — the same six checks as M2, adapted for remote.
 
 **Acceptance criteria**
+
 - [ ] `apply` **exit 0**.
 - [ ] All **six checks** pass against the AWS box.
 - [ ] `terraform destroy` + re-apply **reproduces** it (proves turnkey).
@@ -194,6 +199,7 @@ on PR, `apply` on approval, using **GitHub-side secrets** (Claude documents requ
 names; never sees values). Include a smoke-test job running the curl checks post-deploy.
 
 **Acceptance criteria**
+
 - [ ] Workflow YAML passes **actionlint**.
 - [ ] `deploy/README.md` documents required **secret names** + how the human triggers it.
 - [ ] Dry-run explanation of each job delivered.
