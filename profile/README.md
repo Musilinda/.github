@@ -16,6 +16,11 @@ Available on the [Apple App Store](https://apps.apple.com/us/app/musilinda/id674
 | [blog](https://github.com/Musilinda/blog) | Learning material with CMS |
 ---
 
+## Documentation
+
+- 📖 [Architecture](../ARCHITECTURAL_LANDSCAPE.md)
+- 🤖 [Claude Instructions](../CLAUDE.md)
+
 ## Mission
 
 Make music literacy accessible by grounding learning in solfège — a proven, ear-first system that connects sound directly to notation. Every lesson is interactive: students sing, listen, and match pitches rather than just read theory.
