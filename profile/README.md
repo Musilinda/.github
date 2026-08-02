@@ -14,6 +14,7 @@ Available on the [Apple App Store](https://apps.apple.com/us/app/musilinda/id674
 | [capacitor](https://github.com/Musilinda/capacitor) | iOS native shell — Capacitor WebView with RevenueCat subscriptions and AdMob monetization. |
 | [api](https://github.com/Musilinda/api) | Flask API - WhisperMultiHeadClassifier deep learning inference symbol-audio pairs. |
 | [blog](https://github.com/Musilinda/blog) | Learning material with CMS |
+| [blog](https://github.com/Musilinda/ARCHITECTURAL_LANDSCAPE.md) |
 ---
 
 ## Mission
