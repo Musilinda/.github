@@ -49,6 +49,13 @@ else
   log "Using existing deploy/secrets.env"
 fi
 
+# DOMAIN is the single source of truth in secrets.env (same file bootstrap sources),
+# so the mkcert cert + nginx HTTPS names match what the box is actually provisioned with.
+# shellcheck disable=SC1091
+source deploy/secrets.env
+DOMAIN="${DOMAIN:-musilinda.test}"
+log "DOMAIN=${DOMAIN}"
+
 # ---- 2. launch VM ----------------------------------------------------------
 if multipass info "${VM_NAME}" >/dev/null 2>&1; then
   log "VM '${VM_NAME}' exists — reusing"

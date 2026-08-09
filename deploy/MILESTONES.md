@@ -55,12 +55,13 @@ human performs every push and every cloud `apply`.
 
 ### Deferred TODOs (later — not blocking the current milestone)
 
-- [ ] **`local-dev.sh` soup-to-nuts validation.** `deploy/local-dev.sh` is authored but never
-      run end-to-end (the current VM was built by hand). Prove it later: `multipass delete
-      --purge musilinda`, then a single `./deploy/local-dev.sh` from a clean state must bring the
-      whole stack up (all six M2 checks) with **zero manual steps** except the printed `mkcert
-      -install` + `/etc/hosts` line. Fold in the docx blog re-ingest so content comes back too.
-      *(Natural to do alongside M5/CI, where reproducible-from-scratch builds matter.)*
+- [x] **`local-dev.sh` soup-to-nuts validation — DONE (2026-08-09).** Ran
+      `VM_NAME=musilinda-test ./deploy/local-dev.sh` on a clean VM: exit 0, all 5 services active,
+      HTTPS routing (mkcert) for app./learn./www. → 200, Flask isolated + app-proxy token 200,
+      blob upload/serve 200. Docx re-ingest reloaded **20/20 posts + images** (37 files on disk).
+      Bug caught + fixed: `local-dev.sh` now **sources `DOMAIN` from `secrets.env`** so mkcert/nginx
+      names can't diverge from what bootstrap provisions. (Known cosmetic: title-derivation still
+      mangles "Solfège"/"(Ex)tensions" on fresh upload.)
 
 ---
 
