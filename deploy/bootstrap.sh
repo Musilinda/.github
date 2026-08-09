@@ -54,6 +54,24 @@ require_root() {
 psql_super() { sudo -u postgres psql -v ON_ERROR_STOP=1 -tAc "$1"; }
 
 # ---------------------------------------------------------------------------
+# 0. Swap — an 8 GB box with no swap OOM-wedges during heavy installs
+#    (unpacking the torch/deps stack, vite builds). Lightsail ships swapless.
+# ---------------------------------------------------------------------------
+SWAP_SIZE="${SWAP_SIZE:-4G}"
+setup_swap() {
+  if swapon --show --noheadings | grep -q .; then
+    log "Swap already active — skipping"
+    return 0
+  fi
+  log "Creating ${SWAP_SIZE} swapfile"
+  fallocate -l "${SWAP_SIZE}" /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=4096
+  chmod 600 /swapfile
+  mkswap /swapfile
+  swapon /swapfile
+  grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+}
+
+# ---------------------------------------------------------------------------
 # 1. System packages
 # ---------------------------------------------------------------------------
 install_system_packages() {
@@ -184,6 +202,11 @@ build_api() {
   local dir="${SRC_ROOT}/api"
   sudo -u "${RUN_USER}" "${PYTHON_BIN}" -m venv "${dir}/.venv"
   sudo -u "${RUN_USER}" "${dir}/.venv/bin/pip" install --upgrade pip
+  # CPU-only torch first: the default aarch64/x86 PyPI wheel drags in ~2.5 GB of
+  # unused CUDA libs (this box has no GPU) and OOM-wedged the build. Installing the
+  # CPU build up front satisfies torch/torchaudio so the requirements pass skips CUDA.
+  sudo -u "${RUN_USER}" "${dir}/.venv/bin/pip" install --index-url https://download.pytorch.org/whl/cpu \
+    torch torchaudio
   sudo -u "${RUN_USER}" "${dir}/.venv/bin/pip" install -r "${dir}/requirements.txt"
   # Gitignored model weights are fetched separately.
   sudo -u "${RUN_USER}" bash "${SCRIPT_DIR}/fetch-artifacts.sh" "${dir}"
@@ -191,7 +214,14 @@ build_api() {
 
 _npm_build() {  # service
   local dir="${SRC_ROOT}/$1"
-  sudo -u "${RUN_USER}" npm --prefix "${dir}" ci
+  # Prefer reproducible `npm ci`, but it requires a committed package-lock.json.
+  # Fall back to `npm install` if the repo doesn't ship one (e.g. app_musilinda).
+  if [[ -f "${dir}/package-lock.json" ]]; then
+    sudo -u "${RUN_USER}" npm --prefix "${dir}" ci
+  else
+    warn "$1: no package-lock.json — using 'npm install' (non-reproducible; commit a lockfile)"
+    sudo -u "${RUN_USER}" npm --prefix "${dir}" install
+  fi
   sudo -u "${RUN_USER}" npm --prefix "${dir}" run build
 }
 
@@ -210,8 +240,17 @@ build_blog() {
 }
 
 build_web() {
-  log "Building web (static)"
-  _npm_build web
+  log "Building web (static, env-driven cross-service links)"
+  local dir="${SRC_ROOT}/web"
+  if [[ -f "${dir}/package-lock.json" ]]; then
+    sudo -u "${RUN_USER}" npm --prefix "${dir}" ci
+  else
+    sudo -u "${RUN_USER}" npm --prefix "${dir}" install
+  fi
+  # Inject this environment's learn/blog CMS URL into the landing "Learn" CTA
+  # (Vite %VITE_LEARN_URL% replacement). Overrides web/client/.env's prod default.
+  sudo -u "${RUN_USER}" env VITE_LEARN_URL="https://learn.${DOMAIN}" \
+    npm --prefix "${dir}" run build
 }
 
 # ---------------------------------------------------------------------------
@@ -278,7 +317,8 @@ EOF
 # ---------------------------------------------------------------------------
 write_nginx() {
   log "Configuring nginx"
-  local web_root="${SRC_ROOT}/web/dist"
+  # `vite build client` uses client/ as root, so output lands in web/client/dist.
+  local web_root="${SRC_ROOT}/web/client/dist"
 
   cat > /etc/nginx/sites-available/musilinda.conf <<EOF
 # app.${DOMAIN} -> app_musilinda
@@ -295,10 +335,10 @@ server {
     }
 }
 
-# blog.${DOMAIN} -> blog
+# learn.${DOMAIN} -> blog CMS (prod host is learn.; blog. kept as alias)
 server {
     listen 80;
-    server_name blog.${DOMAIN};
+    server_name learn.${DOMAIN} blog.${DOMAIN};
     client_max_body_size 25m;
     location / {
         proxy_pass http://127.0.0.1:${BLOG_PORT};
@@ -333,6 +373,7 @@ EOF
 # ---------------------------------------------------------------------------
 main() {
   require_root
+  setup_swap
   install_system_packages
   setup_user_and_dirs
   setup_postgres
