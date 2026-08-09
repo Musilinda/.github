@@ -48,7 +48,7 @@ human performs every push and every cloud `apply`.
 | --- | ------------------------------------------------- | ----------------- | ------ |
 | 0   | Setup & rules of engagement                       | branch + this doc | ✅     |
 | 1   | `deploy/bootstrap.sh` (the deploy IS this script) | no VM/AWS         | ✅     |
-| 2   | Local proof in a Multipass VM                     | on the Mac        | 🔄     |
+| 2   | Local proof in a Multipass VM                     | on the Mac        | ✅     |
 | 3   | Terraform wrap (dry — plan only, no apply)        | local             | ⬜     |
 | 4   | The real click — live AWS apply + verify          | human applies     | ⬜     |
 | 5   | CI/CD — GitHub Actions workflow                   | human triggers    | ⬜     |
@@ -162,12 +162,12 @@ for the gitignored model files (`whisper_model/model.safetensors`, `whisper_mult
 
 ---
 
-## Milestone 2 — Local proof in a Multipass VM 🔄 (infra proven; app-functionality gate NOT met)
+## Milestone 2 — Local proof in a Multipass VM ✅ (SIGNED OFF by owner 2026-08-09)
 
 > **Revised bar (human, 2026-08-08):** "Until the app functions as designed, milestone 2 has
-> not been reached." The six infra checks below all pass, but standing up the box is necessary,
-> not sufficient. M2 is **not complete** until the deployed app *works as designed* end-to-end
-> (see "App-functionality gate" at the end of this section).
+> not been reached." Met: six infra checks pass **and** the deployed app works end-to-end over
+> HTTPS — intervals fixed, blog reconstructed (20 posts + images), both admins working. Owner
+> signed off 2026-08-09. (History of the gate + fixes retained below.)
 
 **Environment:** Multipass `musilinda` VM, Ubuntu 24.04.4, 8 GB RAM, 4 vCPU, 25 GB disk,
 aarch64 (Apple-Silicon host). **Faithfulness caveat:** real Lightsail is x86_64; everything
@@ -276,8 +276,8 @@ real `lesson_progress` row. So the failure is **data**, not stack/auth/TLS.
       intervals 4 / scales 3 / chords 2 / harmony 5 / advanced 1.
 - [x] **Admin confirmed on both** over HTTPS: app `POST /api/admin/login` (`admin`/`admin123`,
       separate `adminToken` cookie) → `/api/admin/me` 200; blog `/admin-login` (`pocadmin`) 200.
-- [ ] **Owner to eyeball in browser**: Intervals starts at Perfect Unison (C→C) / advances /
-      saves score; blog lists the 20 posts with images; both `/admin` dashboards usable.
+- [x] **Owner eyeballed in browser** (signed off 2026-08-09): Intervals from Perfect Unison,
+      advances/scores; blog lists the 20 posts with images; both `/admin` dashboards usable.
 - [ ] **True prod data** (users/progress for `app_musilinda`) still test-only — a real cutover
       would still `pg_restore` the Replit dumps. Blog content is now real via docx re-ingest.
 
@@ -340,8 +340,10 @@ the mkcert local CA (`mkcert -install`). This is **local-testing scaffolding onl
 TLS is Let's Encrypt at M4. `*.musilinda.test` server blocks are additive and never touch the
 real `musilinda.com` routing.
 
-**Status:** 🔄 **in progress — NOT complete.** Infra checks pass; the app-functionality gate is
-**open** pending real production data. **Do not start M3 until M2's app gate is met.**
+**Status:** ✅ **SIGNED OFF (2026-08-09).** Six infra checks pass and the app functions end-to-end
+over HTTPS (intervals, blog content + images, both admins). M3 (terraform dry) may begin.
+Note: true prod `app_musilinda` users/progress still arrive via `pg_restore` at real cutover;
+that's a cutover step, not an M2 blocker.
 
 ---
 
@@ -421,19 +423,14 @@ the workflow to main and switch to `workflow_dispatch`.
 
 ## Current position
 
-**M1 COMPLETE. M2 IN PROGRESS — infra proven, app-functionality gate OPEN.** `bootstrap.sh`
-stands up the full stack on a fresh Multipass Ubuntu 24.04 VM (all six infra checks pass, five
-deploy defects fixed at source). **But** hands-on HTTPS testing showed the app does **not**
-function as designed on fresh-DB data: Intervals is stuck on C→E / "1/0" / endless Congrats,
-because the app's boot-seed uses a category taxonomy the current client doesn't recognize
-(0 overlap). Per the human's bar — "until the app functions as designed, M2 has not been
-reached" — **M2 is not complete.** Closing it requires loading **real production data** and
-re-verifying the app works end-to-end over HTTPS. See the "App-functionality gate" in the M2
-section. The VM (`musilinda`) is still up (`multipass shell musilinda`; browse
-`https://app.musilinda.test` after `mkcert -install`).
+**M1 & M2 COMPLETE (M2 signed off 2026-08-09).** `bootstrap.sh` stands up the full stack on a
+fresh Multipass Ubuntu 24.04 VM (six infra checks pass, five deploy defects fixed at source),
+**and** the app functions end-to-end over HTTPS: Intervals fixed (data + seed), blog
+reconstructed from the original `.docx` (20 posts + images) with working analytics/admin/toast,
+web landing cleaned up (build-time Tailwind, env-driven CTA, real privacy page). The whole
+suite is consolidated on `claude/aws`. VM `musilinda` still up (`multipass shell musilinda`).
 
-**Next: get a production DB dump into the VM, then re-verify app functionality. M3 (terraform)
-is blocked until M2's app gate is met.**
+**Next: Milestone 3 — terraform dry (plan only, no apply).** STOP for owner's go before starting.
 
 **Follow-ups to commit** (Claude doesn't push these repos):
 - **web repo (required for a turnkey deploy; fix is in the working tree):** the two tailwind
