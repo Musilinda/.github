@@ -131,3 +131,36 @@ password): `mkcert -install` and editing `/etc/hosts` — it prints the exact co
 
 Not yet folded in (future): restoring a production DB dump, and building the `.dev`/`.com` tiers
 via terraform (see `deploy/MILESTONES.md`).
+
+## Dev loop — push code changes to the VM
+
+The VM runs a **built** copy under systemd, so changes on the Mac don't auto-sync. Push one
+service at a time with **`deploy/push-to-local-vm.sh`** (archive working tree → extract over
+`/srv/musilinda/<svc>`, keeping `node_modules` → rebuild → restart the unit):
+
+```bash
+./deploy/push-to-local-vm.sh app_musilinda   # build + restart musilinda-app
+./deploy/push-to-local-vm.sh blog            # build + restart musilinda-blog
+./deploy/push-to-local-vm.sh web             # rebuild static dist (no restart)
+./deploy/push-to-local-vm.sh api             # pip install + restart musilinda-api
+```
+Pushes tracked **and** uncommitted edits. If `package.json`/`requirements.txt` gained NEW deps,
+run `npm ci` / `pip install` in the VM once (the script only builds).
+
+## Capacitor simulator → VM
+
+Point the iOS **simulator** at the VM (it inherits the Mac's `/etc/hosts` + reachability, so no
+port-forward needed). In `capacitor/.env`:
+
+```
+CAP_SERVER_URL=https://app.musilinda.test
+CAP_SERVER_CLEARTEXT=false
+CAP_ALLOW_NAVIGATION=app.musilinda.test
+```
+```bash
+cd capacitor && npx cap sync ios
+xcrun simctl keychain booted add-root-cert "$(mkcert -CAROOT)/rootCA.pem"   # trust mkcert CA in the sim
+```
+Then run in Xcode. Flip back to the fast dev server by uncommenting the `localhost:5050` block and
+re-running `cap sync`. (A **physical phone** can't reach the Multipass IP — that needs a Mac→VM
+port-forward + the CA installed as an iOS profile.)
