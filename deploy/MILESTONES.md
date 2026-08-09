@@ -53,6 +53,15 @@ human performs every push and every cloud `apply`.
 | 4   | The real click — live AWS apply + verify          | human applies     | ⬜     |
 | 5   | CI/CD — GitHub Actions workflow                   | human triggers    | ⬜     |
 
+### Deferred TODOs (later — not blocking the current milestone)
+
+- [ ] **`local-dev.sh` soup-to-nuts validation.** `deploy/local-dev.sh` is authored but never
+      run end-to-end (the current VM was built by hand). Prove it later: `multipass delete
+      --purge musilinda`, then a single `./deploy/local-dev.sh` from a clean state must bring the
+      whole stack up (all six M2 checks) with **zero manual steps** except the printed `mkcert
+      -install` + `/etc/hosts` line. Fold in the docx blog re-ingest so content comes back too.
+      *(Natural to do alongside M5/CI, where reproducible-from-scratch builds matter.)*
+
 ---
 
 ## Reconciliation notes vs `CLAUDE.md` (fold into the milestones)
@@ -221,7 +230,7 @@ apex + www HTTP 200. **web is now reproducible from source.**
 ### Open decisions from M1 — now resolved by the live run
 
 1. **Source staging:** pre-staged via `git archive <ref> | multipass transfer` (no GitHub
-   creds in the VM). blog from `claude/blog_storage_aws`, others from `claude/aws`. ✔
+   creds in the VM). blog from `claude/aws`, others from `claude/aws`. ✔
 2. **Python:** 3.12 (Ubuntu 24.04 default) worked — CPU torch/deps wheels all resolved. ✔
 3. **drizzle `db:push`:** ran **non-interactively** on both fresh DBs ("Changes applied"), no
    prompt hang. ✔
@@ -283,7 +292,7 @@ migrated pipeline, produces native `/api/blob-proxy` URLs.
 Content authoring, admin, and a batch of real bugs — all fixed in the service repos' working
 trees (uncommitted; **owner to commit**), rebuilt in the VM, and verified.
 
-**`blog` repo (`claude/blog_storage_aws`):**
+**`blog` repo (`claude/aws`):**
 - ✅ **Analytics were dead** — `analyticsMiddleware` was imported but **never `app.use()`d**, so
   `page_visits` stayed empty and admin analytics read 0. Mounted it before the routes → views now
   record (verified: 4 views → 4 rows → dashboard shows them). `server/routes.ts`.
@@ -440,7 +449,7 @@ is blocked until M2's app gate is met.**
   (new), `client/public/privacy-policy.html` (moved), `client/.env` (new), `package.json` +
   `package-lock.json` (tailwind plugins).
 - **app_musilinda** (`claude/aws`): `server/storage.ts` (interval seed → correct taxonomy).
-- **blog** (`claude/blog_storage_aws`): `server/routes.ts` (analytics mount + leak removal),
+- **blog** (`claude/aws`): `server/routes.ts` (analytics mount + leak removal),
   `client/src/pages/admin.tsx` (dropdown, fallback, upload toast), `client/src/pages/all-posts.tsx`
   (curriculum sort), `client/index.html` (banner).
 
@@ -449,4 +458,4 @@ is blocked until M2's app gate is met.**
 > (e.g. via `local-dev.sh`) starts from seed — re-run the docx upload to restore blog content.
 
 _Branch layout: Musilinda + api + app_musilinda + web on `claude/aws`; blog on
-`claude/blog_storage_aws` (filesystem storage) and `claude/aws`; core + capacitor on `main`._
+`claude/aws` (filesystem storage) and `claude/aws`; core + capacitor on `main`._

@@ -18,7 +18,7 @@ VM_NAME="${VM_NAME:-musilinda}"
 DOMAIN="${DOMAIN:-musilinda.test}"
 VM_MEM="${VM_MEM:-8G}"; VM_DISK="${VM_DISK:-25G}"; VM_CPUS="${VM_CPUS:-4}"
 API_REF="${API_REF:-claude/aws}"; APP_REF="${APP_REF:-claude/aws}"
-WEB_REF="${WEB_REF:-claude/aws}"; BLOG_REF="${BLOG_REF:-claude/blog_storage_aws}"
+WEB_REF="${WEB_REF:-claude/aws}"; BLOG_REF="${BLOG_REF:-claude/aws}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 log() { printf '\n\033[1;34m==>\033[0m %s\n' "$*"; }

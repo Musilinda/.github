@@ -44,13 +44,13 @@ multipass info musilinda | awk '/IPv4/{print $2}'    # note the VM IP (changes o
 ## 2. Stage source, secrets, and model artifacts into the VM
 
 `bootstrap.sh` uses pre-staged source at `/srv/musilinda/<service>` (no GitHub creds in the VM).
-Build one tarball per service **at the right ref** (blog from `claude/blog_storage_aws`, others
+Build one tarball per service **at the right ref** (blog from `claude/aws`, others
 from `claude/aws`), plus the two gitignored model weights, plus `secrets.env`.
 
 ```bash
 # from the repo root — archive each service at its branch
 for s in api app_musilinda web; do git -C $s archive claude/aws -o /tmp/$s.tar; done
-git -C blog archive claude/blog_storage_aws -o /tmp/blog.tar
+git -C blog archive claude/aws -o /tmp/blog.tar
 
 # copy in, extract to /srv/musilinda/<svc>, add model weights (api), stage deploy/ scripts
 multipass exec musilinda -- sudo mkdir -p /srv/musilinda/{api,app_musilinda,blog,web}

@@ -189,7 +189,7 @@ setup_sources() {
   log "Acquiring service sources"
   ensure_source api            "${API_REPO:-}"  "${API_REF:-claude/aws}"
   ensure_source app_musilinda  "${APP_REPO:-}"  "${APP_REF:-claude/aws}"
-  ensure_source blog           "${BLOG_REPO:-}" "${BLOG_REF:-claude/blog_storage_aws}"
+  ensure_source blog           "${BLOG_REPO:-}" "${BLOG_REF:-claude/aws}"
   ensure_source web            "${WEB_REPO:-}"  "${WEB_REF:-claude/aws}"
   chown -R "${RUN_USER}:${RUN_USER}" "${SRC_ROOT}"
 }
