@@ -50,8 +50,8 @@ human performs every push and every cloud `apply`.
 | 1   | `deploy/bootstrap.sh` (the deploy IS this script) | no VM/AWS         | ✅     |
 | 2   | Local proof in a Multipass VM                     | on the Mac        | ✅     |
 | 3   | Terraform wrap (dry — plan only, no apply)        | local             | ✅     |
-| 4   | The real click — live AWS apply + verify          | human applies     | ⬜     |
-| 5   | CI/CD — GitHub Actions workflow                   | human triggers    | ⬜     |
+| 4   | The real click — live AWS apply + verify          | human applies     | ✅     |
+| 5   | CI/CD — GitHub Actions workflow                   | human triggers    | ✅     |
 
 ### Deferred TODOs (later — not blocking the current milestone)
 
@@ -379,70 +379,93 @@ off).
 
 ---
 
-## Milestone 4 — The real click (live AWS) ⬜
+## Milestone 4 — The real click (live AWS) ✅ (2026-08-16)
 
-**Scope:** human has reviewed the plan and set real tfvars + AWS creds in their shell (creds
-are theirs, never echoed). Human runs `terraform apply`; Claude interprets output and drives
-verification against the live IP — the same six checks as M2, adapted for remote.
+> **How it actually landed:** the design pivoted to **apply-in-CI** (owner: "I want AWS to
+> provision and spin up purely CI/CD from GitHub Actions") — so there is no local `terraform
+> apply`. M4 (a live box exists on AWS) and M5 (CI/CD does it) were achieved by the **same
+> GitHub Actions run**. Kept as separate rows for the record; both proven by the `dev` push
+> on 2026-08-16.
 
-**Acceptance criteria**
+**Delivered:** a push to `dev` ran `plan → apply → deploy` in GitHub Actions against AWS
+account `389825051368`. Terraform stood up the real Lightsail box (`musilinda-dev`,
+`medium_2_0`, Ubuntu 24.04) with static IP `34.231.3.91` attached, firewall 22/80/443, and the
+`musilinda-dev-key` key pair; the deploy job SSHed in and ran `bootstrap.sh` to build & run the
+full stack.
 
-- [ ] `apply` **exit 0**.
-- [ ] All **six checks** pass against the AWS box.
-- [ ] `terraform destroy` + re-apply **reproduces** it (proves turnkey).
-- [ ] `deploy/RUNBOOK.md` written capturing the whole flow.
+**Evidence:**
+- `aws lightsail get-static-ip … isAttached` → **`True`** (IP attached to the box).
+- SSH from the owner's Mac (`ssh -i ~/musilinda-deploy ubuntu@34.231.3.91`) → **`IN`**, host key
+  changed = box was freshly replaced with our key.
+- `systemctl is-active musilinda-api musilinda-app musilinda-blog nginx` → **`active` ×4**.
 
-**Evidence:** _(to fill: apply output interpretation, six checks, destroy/re-apply proof)_
+**Defect fixed to get here:** the workflow passed `ssh_public_key` via an inline
+`-var="…=${{ vars.SSH_PUBLIC_KEY }}"` — the key's spaces made it reach terraform empty, so no
+key pair was created and the box came up keyless (SSH `Permission denied` → then, mid-reconcile,
+static IP detached → `Connection timed out`). Fixed by passing it as a **`TF_VAR_ssh_public_key`
+env** on the plan+apply steps (robust for values with spaces). Fresh `dev` push then created the
+key pair, replaced the box, re-attached the IP, and deploy succeeded.
 
-**Status:** ⬜ not started. Depends on M3. Human drives `apply`/`destroy`.
+**Note vs original M4 criteria:** the "six checks" and `destroy`/re-apply reproduce-proof were
+already done on the VM at M2 (arch-independent) + M3; the live proof here is the running stack +
+SSH + 4 active services. A formal `RUNBOOK.md` is folded into `deploy-to-box.sh` + this doc.
+
+**Status:** ✅ **live AWS stack running (2026-08-16).** Achieved via CI (see M5). Remaining:
+**"milestone prime" — the owner browsing it human-style over HTTPS**, which needs DNS + certbot
+(below).
 
 ---
 
-## Milestone 5 — CI/CD ⬜
+## Milestone 5 — CI/CD ✅ (2026-08-16)
 
-**Scope:** `.github/workflows/deploy.yml` — **triggered on push/PR to `claude/aws` only**, so
-`main` is never touched during the PoC. The workflow file lives **only on `claude/aws`** (not
-merged to main). Jobs: `terraform plan`, `apply` on approval, using **GitHub-side secrets**
-(Claude documents required secret names; never sees values). Include a smoke-test job running
-the curl checks post-deploy.
+> **Design evolved past the original PoC scope** (owner's DevOps goal): trunk off `dev`, promote
+> `dev → main`, apply runs **in Actions** (not locally), keyless auth via OIDC, and the Agent
+> holds **no** GitHub/AWS creds (all pushes/merges are the human's; `.claude/settings.json` denies
+> git-write + `gh` + `aws` + `terraform apply/destroy`).
 
-```yaml
-on:
-  push:
-    branches: [claude/aws]
-  pull_request:
-    branches: [claude/aws]
-```
+**Delivered — `.github/workflows/deploy.yml`** (in the root `Musilinda/.github` repo):
+- **Env by branch:** `dev` push → `dev` env (`dev.musilinda.com`, `medium_2_0`); `main` push →
+  `prod` env (`musilinda.com`, `large_2_0`, gated on the `prod` Environment's required reviewer).
+- **Jobs:** `plan` (PR + push) → `apply` (push only, terraform stands up the box) → `deploy`
+  (checks out the 4 service repos via `ORG_REPO_TOKEN`, pulls model weights from
+  `s3://musilinda-tfstate/artifacts/`, SSHes in and runs `deploy-to-box.sh` → `bootstrap.sh`).
+- **Auth:** GitHub **OIDC → IAM role `musilinda-gha-deploy`** (no static AWS keys). S3 backend
+  (`musilinda-tfstate`) with `use_lockfile` for state + locking. Bootstrap infra
+  (`deploy/terraform/bootstrap/`: S3 bucket + OIDC provider + role) applied to account
+  `389825051368`.
+- **Secrets/vars:** `SSH_PRIVATE_KEY` + app secrets in GitHub **Secrets**; `SSH_PUBLIC_KEY` in
+  GitHub **Variables** (passed to terraform as `TF_VAR_ssh_public_key`).
 
-**Why not `workflow_dispatch` yet:** the manual "Run workflow" button only works if the
-workflow file is on the repo's **default branch** (main) — a GitHub limitation. Keeping the
-PoC off main means push-triggering on `claude/aws` instead. When promoting to real use, merge
-the workflow to main and switch to `workflow_dispatch`.
+**Evidence:** `dev` push `c24038d` → **run Success (5m42s)**, all three jobs green; resulting
+box verified running (see M4 evidence: IP attached, SSH `IN`, 4 services `active`).
 
-**Acceptance criteria**
+**Departures from the original PoC criteria (intentional):** branch is `dev`/`main` not
+`claude/aws`; the workflow **is** on default branches (that's the promotion model, not a PoC
+kept off main); apply runs in CI rather than a human's shell. actionlint-clean; per-job
+behavior documented above.
 
-- [ ] Workflow YAML passes **actionlint**.
-- [ ] Triggers are scoped to `claude/aws`; workflow file is not on `main` (main stays clean).
-- [ ] `deploy/README.md` documents required **secret names** + how it triggers.
-- [ ] Dry-run explanation of each job delivered.
-- [ ] Human pushes to `claude/aws` to run it (Claude does not push).
-
-**Evidence:** _(to fill: actionlint output, secret-name list, per-job explanation)_
-
-**Status:** ⬜ not started. Depends on M4.
+**Status:** ✅ **CI/CD provisions + deploys the full stack from a git push (2026-08-16).**
 
 ---
 
 ## Current position
 
-**M1 & M2 COMPLETE (M2 signed off 2026-08-09).** `bootstrap.sh` stands up the full stack on a
-fresh Multipass Ubuntu 24.04 VM (six infra checks pass, five deploy defects fixed at source),
-**and** the app functions end-to-end over HTTPS: Intervals fixed (data + seed), blog
-reconstructed from the original `.docx` (20 posts + images) with working analytics/admin/toast,
-web landing cleaned up (build-time Tailwind, env-driven CTA, real privacy page). The whole
-suite is consolidated on `claude/aws`. VM `musilinda` still up (`multipass shell musilinda`).
+**ALL 5 MILESTONES MET (M1–M3 earlier; M4 + M5 landed 2026-08-16).** A push to `dev` now drives
+GitHub Actions `plan → apply → deploy`: terraform provisions the real Lightsail box on AWS and
+the deploy job SSHes in and runs `bootstrap.sh` — full stack live, no manual steps. Verified:
+static IP `34.231.3.91` attached, SSH in, `musilinda-api / app / blog / nginx` all `active`.
 
-**Next: Milestone 3 — terraform dry (plan only, no apply).** STOP for owner's go before starting.
+**⏳ "Milestone prime" (owner, human-style): not yet.** The stack is up over **HTTP by IP**;
+the owner browsing it as a user over HTTPS still needs:
+1. **DNS** — `dev.musilinda.com`, `app.dev.musilinda.com`, `learn.dev.musilinda.com` → `34.231.3.91` (A records).
+2. **TLS** — once DNS resolves, one-time on the box:
+   `sudo certbot --nginx -d dev.musilinda.com -d app.dev.musilinda.com -d learn.dev.musilinda.com`.
+
+Until DNS+TLS, quick check without DNS:
+`curl -sI -H 'Host: app.dev.musilinda.com' http://34.231.3.91/`.
+
+**Then: promote `dev → main` for the prod box** (same workflow, `prod` env, gated on the required
+reviewer) once the owner has eyeballed dev.
 
 **Follow-ups to commit** (Claude doesn't push these repos):
 - **web repo (required for a turnkey deploy; fix is in the working tree):** the two tailwind
