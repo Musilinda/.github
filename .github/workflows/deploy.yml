@@ -1,0 +1,66 @@
+name: deploy
+
+# dev branch -> dev env, main branch -> prod env (config-only promotion).
+# PR = plan only (safe). Push/merge = apply. Prod apply waits on the `prod`
+# GitHub Environment's required reviewer.
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev, main]
+
+permissions:
+  id-token: write # mint the OIDC token to assume the AWS role
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  TF_DIR: deploy/terraform
+  ROLE_ARN: arn:aws:iam::389825051368:role/musilinda-gha-deploy
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      env_name: ${{ steps.env.outputs.name }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - id: env
+        name: Pick environment from branch
+        run: |
+          if [ "${{ github.ref_name }}" = "main" ]; then
+            echo "name=prod" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=dev" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: terraform init
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform init -backend-config="key=${{ steps.env.outputs.name }}/terraform.tfstate"
+      - name: terraform plan
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform plan -var-file="environments/${{ steps.env.outputs.name }}.tfvars"
+
+  apply:
+    needs: plan
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    # prod = gated by required reviewer; dev = auto (configure in repo Environments)
+    environment: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: terraform init
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform init -backend-config="key=${{ needs.plan.outputs.env_name }}/terraform.tfstate"
+      - name: terraform apply
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform apply -auto-approve -var-file="environments/${{ needs.plan.outputs.env_name }}.tfvars"
