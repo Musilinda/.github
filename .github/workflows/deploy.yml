@@ -1,8 +1,8 @@
 name: deploy
 
-# dev branch -> dev env, main branch -> prod env (config-only promotion).
-# PR = plan only (safe). Push/merge = apply. Prod apply waits on the `prod`
-# GitHub Environment's required reviewer.
+# dev branch -> dev env, main branch -> prod env.
+# PR = plan only. Push = plan -> apply (box) -> deploy (SSH provision the stack).
+# prod apply/deploy wait on the `prod` GitHub Environment's required reviewer.
 on:
   push:
     branches: [dev, main]
@@ -10,13 +10,14 @@ on:
     branches: [dev, main]
 
 permissions:
-  id-token: write # mint the OIDC token to assume the AWS role
+  id-token: write
   contents: read
 
 env:
   AWS_REGION: us-east-1
   TF_DIR: deploy/terraform
   ROLE_ARN: arn:aws:iam::389825051368:role/musilinda-gha-deploy
+  ARTIFACTS_BUCKET: musilinda-tfstate # model weights under s3://<bucket>/artifacts/
 
 jobs:
   plan:
@@ -27,7 +28,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
       - id: env
-        name: Pick environment from branch
         run: |
           if [ "${{ github.ref_name }}" = "main" ]; then
             echo "name=prod" >> "$GITHUB_OUTPUT"
@@ -43,14 +43,16 @@ jobs:
         run: terraform init -backend-config="key=${{ steps.env.outputs.name }}/terraform.tfstate"
       - name: terraform plan
         working-directory: ${{ env.TF_DIR }}
-        run: terraform plan -var-file="environments/${{ steps.env.outputs.name }}.tfvars"
+        run: terraform plan -var-file="environments/${{ steps.env.outputs.name }}.tfvars" -var="ssh_public_key=${{ vars.SSH_PUBLIC_KEY }}"
 
   apply:
     needs: plan
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
-    # prod = gated by required reviewer; dev = auto (configure in repo Environments)
     environment: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
+    outputs:
+      ip: ${{ steps.out.outputs.ip }}
+      domain: ${{ steps.out.outputs.domain }}
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
@@ -63,4 +65,77 @@ jobs:
         run: terraform init -backend-config="key=${{ needs.plan.outputs.env_name }}/terraform.tfstate"
       - name: terraform apply
         working-directory: ${{ env.TF_DIR }}
-        run: terraform apply -auto-approve -var-file="environments/${{ needs.plan.outputs.env_name }}.tfvars"
+        run: terraform apply -auto-approve -var-file="environments/${{ needs.plan.outputs.env_name }}.tfvars" -var="ssh_public_key=${{ vars.SSH_PUBLIC_KEY }}"
+      - id: out
+        working-directory: ${{ env.TF_DIR }}
+        run: |
+          echo "ip=$(terraform output -raw static_ip)" >> "$GITHUB_OUTPUT"
+          echo "domain=$(terraform output -raw domain)" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: [plan, apply]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
+    steps:
+      - name: Checkout infra
+        uses: actions/checkout@v4
+        with:
+          path: infra
+      - name: Checkout api
+        uses: actions/checkout@v4
+        with:
+          repository: Musilinda/api
+          ref: ${{ github.ref_name }}
+          path: src/api
+          token: ${{ secrets.ORG_REPO_TOKEN }}
+      - name: Checkout app_musilinda
+        uses: actions/checkout@v4
+        with:
+          repository: Musilinda/app_musilinda
+          ref: ${{ github.ref_name }}
+          path: src/app_musilinda
+          token: ${{ secrets.ORG_REPO_TOKEN }}
+      - name: Checkout blog
+        uses: actions/checkout@v4
+        with:
+          repository: Musilinda/blog
+          ref: ${{ github.ref_name }}
+          path: src/blog
+          token: ${{ secrets.ORG_REPO_TOKEN }}
+      - name: Checkout web
+        uses: actions/checkout@v4
+        with:
+          repository: Musilinda/web
+          ref: ${{ github.ref_name }}
+          path: src/web
+          token: ${{ secrets.ORG_REPO_TOKEN }}
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Pull model weights from S3
+        run: |
+          mkdir -p src/api/whisper_model
+          aws s3 cp "s3://${{ env.ARTIFACTS_BUCKET }}/artifacts/whisper_model/model.safetensors" src/api/whisper_model/model.safetensors
+          aws s3 cp "s3://${{ env.ARTIFACTS_BUCKET }}/artifacts/whisper_multihead_model.pt" src/api/whisper_multihead_model.pt
+      - name: Add SSH key
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+      - name: Deploy to box (SSH)
+        env:
+          BOX_IP: ${{ needs.apply.outputs.ip }}
+          DOMAIN: ${{ needs.apply.outputs.domain }}
+          SRC_DIR: ${{ github.workspace }}/src
+          DEPLOY_DIR: ${{ github.workspace }}/infra/deploy
+          MUSILINDA_DB_PASSWORD: ${{ secrets.MUSILINDA_DB_PASSWORD }}
+          BLOG_DB_PASSWORD: ${{ secrets.BLOG_DB_PASSWORD }}
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+        run: |
+          eval "$(ssh-agent -s)"
+          ssh-add ~/.ssh/deploy_key
+          bash infra/deploy/deploy-to-box.sh

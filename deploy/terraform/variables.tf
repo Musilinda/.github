@@ -26,6 +26,12 @@ variable "availability_zone" {
   default     = "us-east-1a"
 }
 
+variable "ssh_public_key" {
+  description = "Public key registered on the box so the CI deploy job can SSH in. Passed by the workflow from a GitHub variable."
+  type        = string
+  default     = ""
+}
+
 variable "dry_run" {
   description = "true = configure the provider for offline `plan` (skip live cred/metadata calls). Leave false for real apply."
   type        = bool

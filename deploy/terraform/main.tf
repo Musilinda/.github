@@ -17,13 +17,21 @@ locals {
   }
 }
 
-# The one box: Ubuntu 24.04, size per env. Provisions itself via user_data,
-# which runs bootstrap.sh (the same script proven locally in M1/M2).
+# SSH key the CI deploy job uses to reach the box (public key from a GH variable).
+resource "aws_lightsail_key_pair" "deploy" {
+  count      = var.ssh_public_key == "" ? 0 : 1
+  name       = "${local.name}-key"
+  public_key = var.ssh_public_key
+}
+
+# The one box: Ubuntu 24.04, size per env. The CI deploy job SSHes in to run
+# bootstrap.sh (Lightsail has no IAM roles, so the box can't self-pull).
 resource "aws_lightsail_instance" "box" {
   name              = local.name
   availability_zone = var.availability_zone
   blueprint_id      = "ubuntu_24_04"
   bundle_id         = var.bundle_id
+  key_pair_name     = var.ssh_public_key == "" ? null : aws_lightsail_key_pair.deploy[0].name
 
   user_data = templatefile("${path.module}/user_data.sh.tftpl", {
     domain = var.domain
