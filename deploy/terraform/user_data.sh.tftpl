@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Lightsail cloud-init entrypoint (runs once on first boot as root).
+# Domain/env are injected by terraform templatefile().
+#
+# M3 (dry): this is a minimal, valid stub so `plan` is complete.
+# M4 (real apply) fills in the source-acquisition wiring, then runs bootstrap.sh:
+#   - write /srv/musilinda/deploy/secrets.env (DOMAIN=${domain} + real secrets)
+#   - acquire service source (git clone via deploy token, or pre-staged)
+#   - fetch the two gitignored model weights (fetch-artifacts.sh)
+#   - sudo bash bootstrap.sh   # provisions nginx/postgres/node/torch + systemd
+#   - certbot for Let's Encrypt TLS on ${domain}
+set -euo pipefail
+export DOMAIN="${domain}"
+echo "musilinda ${env} (${domain}) — provisioned by terraform user_data; bootstrap wiring lands at M4" \
+  | tee /var/log/musilinda-provision.log
