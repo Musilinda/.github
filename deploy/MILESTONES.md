@@ -49,7 +49,7 @@ human performs every push and every cloud `apply`.
 | 0   | Setup & rules of engagement                       | branch + this doc | ✅     |
 | 1   | `deploy/bootstrap.sh` (the deploy IS this script) | no VM/AWS         | ✅     |
 | 2   | Local proof in a Multipass VM                     | on the Mac        | ✅     |
-| 3   | Terraform wrap (dry — plan only, no apply)        | local             | ⬜     |
+| 3   | Terraform wrap (dry — plan only, no apply)        | local             | ✅     |
 | 4   | The real click — live AWS apply + verify          | human applies     | ⬜     |
 | 5   | CI/CD — GitHub Actions workflow                   | human triggers    | ⬜     |
 
@@ -348,7 +348,18 @@ that's a cutover step, not an M2 blocker.
 
 ---
 
-## Milestone 3 — Terraform wrap (dry) ⬜
+## Milestone 3 — Terraform wrap (dry) ✅ (2026-08-16)
+
+**Delivered:** `deploy/terraform/` — `aws_lightsail_instance` (Ubuntu 24.04), static IP +
+attachment, firewall opening **only 22/80/443** (Flask/node ports stay localhost). `user_data`
+runs `bootstrap.sh` (stub for M3; wiring at M4). Per-env var sets: `environments/dev.tfvars`
+(4GB `medium_2_0`, `dev.musilinda.com`) and `prod.tfvars` (8GB `large_2_0`, `musilinda.com`) —
+same code, config-only promotion.
+
+**Evidence:** `terraform init` ✅, `validate` → "configuration is valid" ✅, `plan` (both var
+files, offline via `dry_run=true`) → **`Plan: 4 to add, 0 change, 0 destroy`** (instance, static
+IP, attachment, public-ports); outputs `static_ip` / `instance_name` / `domain`. **No apply.**
+Documented in `deploy/terraform/README.md`.
 
 **Scope:** `deploy/terraform/` — `aws_lightsail_instance` (Ubuntu 24.04, 8 GB plan), static
 IP, `user_data` that runs `bootstrap.sh`, secrets from gitignored `terraform.tfvars`
