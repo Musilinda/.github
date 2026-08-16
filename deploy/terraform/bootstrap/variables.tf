@@ -20,5 +20,8 @@ variable "allowed_subjects" {
   default = [
     "repo:Musilinda/*:ref:refs/heads/dev",
     "repo:Musilinda/*:ref:refs/heads/main",
+    # jobs that use `environment:` get an :environment: subject, not :ref:
+    "repo:Musilinda/*:environment:dev",
+    "repo:Musilinda/*:environment:prod",
   ]
 }
