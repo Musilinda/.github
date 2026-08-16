@@ -43,7 +43,9 @@ jobs:
         run: terraform init -backend-config="key=${{ steps.env.outputs.name }}/terraform.tfstate"
       - name: terraform plan
         working-directory: ${{ env.TF_DIR }}
-        run: terraform plan -var-file="environments/${{ steps.env.outputs.name }}.tfvars" -var="ssh_public_key=${{ vars.SSH_PUBLIC_KEY }}"
+        env:
+          TF_VAR_ssh_public_key: ${{ vars.SSH_PUBLIC_KEY }}
+        run: terraform plan -var-file="environments/${{ steps.env.outputs.name }}.tfvars"
 
   apply:
     needs: plan
@@ -65,7 +67,9 @@ jobs:
         run: terraform init -backend-config="key=${{ needs.plan.outputs.env_name }}/terraform.tfstate"
       - name: terraform apply
         working-directory: ${{ env.TF_DIR }}
-        run: terraform apply -auto-approve -var-file="environments/${{ needs.plan.outputs.env_name }}.tfvars" -var="ssh_public_key=${{ vars.SSH_PUBLIC_KEY }}"
+        env:
+          TF_VAR_ssh_public_key: ${{ vars.SSH_PUBLIC_KEY }}
+        run: terraform apply -auto-approve -var-file="environments/${{ needs.plan.outputs.env_name }}.tfvars"
       - id: out
         working-directory: ${{ env.TF_DIR }}
         run: |
