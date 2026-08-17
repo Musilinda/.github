@@ -369,6 +369,53 @@ EOF
 }
 
 # ---------------------------------------------------------------------------
+# 9. TLS via Let's Encrypt (certbot) — idempotent; no-op until DNS is pointed
+# ---------------------------------------------------------------------------
+# write_nginx() always (re)writes an HTTP-only config; certbot --nginx then
+# injects the 443 server blocks + http->https redirect on top. On every redeploy
+# we re-run certbot, which reuses the existing valid cert (only renews near
+# expiry) and re-applies those edits — so HTTPS survives redeploys with no
+# manual step. A box whose DNS isn't pointed yet simply stays HTTP (we skip any
+# name that doesn't resolve to this box, so certbot never aborts the deploy).
+ENABLE_TLS="${ENABLE_TLS:-true}"
+TLS_EMAIL="${TLS_EMAIL:-trapadulli@gmail.com}"
+setup_tls() {
+  if [[ "${ENABLE_TLS}" != "true" ]]; then
+    log "TLS disabled (ENABLE_TLS != true) — serving HTTP only"
+    return 0
+  fi
+  log "Configuring TLS (Let's Encrypt via certbot)"
+  DEBIAN_FRONTEND=noninteractive apt-get install -y certbot python3-certbot-nginx
+
+  # Only request certs for names that resolve to THIS box. Otherwise certbot's
+  # HTTP-01 challenge fails and would abort an otherwise-good deploy.
+  local my_ip resolved d domains=()
+  my_ip="$(curl -fsS --max-time 5 https://checkip.amazonaws.com 2>/dev/null | tr -d '[:space:]' || true)"
+  for d in "app.${DOMAIN}" "learn.${DOMAIN}" "${DOMAIN}" "www.${DOMAIN}"; do
+    resolved="$(getent ahostsv4 "${d}" 2>/dev/null | awk 'NR==1{print $1}')"
+    if [[ -n "${resolved}" && ( -z "${my_ip}" || "${resolved}" == "${my_ip}" ) ]]; then
+      domains+=(-d "${d}")
+    else
+      warn "TLS: ${d} -> ${resolved:-unresolved} (box is ${my_ip:-unknown}) — skipping"
+    fi
+  done
+
+  if [[ ${#domains[@]} -eq 0 ]]; then
+    warn "TLS: no names point at this box yet — staying HTTP. Point DNS at ${my_ip:-the box} and redeploy."
+    return 0
+  fi
+
+  if certbot --nginx "${domains[@]}" \
+      --non-interactive --agree-tos --keep-until-expiring --redirect \
+      -m "${TLS_EMAIL}"; then
+    systemctl reload nginx
+    log "TLS active for:${domains[*]//-d/}"
+  else
+    warn "TLS: certbot failed — continuing on HTTP (check DNS propagation / LE rate limits)"
+  fi
+}
+
+# ---------------------------------------------------------------------------
 # main
 # ---------------------------------------------------------------------------
 main() {
@@ -385,6 +432,7 @@ main() {
   build_web
   write_systemd_units
   write_nginx
+  setup_tls
   log "Done. Services:"
   systemctl --no-pager --type=service --state=running | grep musilinda || true
   log "Test with: curl -H 'Host: app.${DOMAIN}' http://localhost/"
