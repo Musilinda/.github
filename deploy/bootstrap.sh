@@ -392,7 +392,9 @@ setup_tls() {
   local my_ip resolved d domains=()
   my_ip="$(curl -fsS --max-time 5 https://checkip.amazonaws.com 2>/dev/null | tr -d '[:space:]' || true)"
   for d in "app.${DOMAIN}" "learn.${DOMAIN}" "${DOMAIN}" "www.${DOMAIN}"; do
-    resolved="$(getent ahostsv4 "${d}" 2>/dev/null | awk 'NR==1{print $1}')"
+    # `|| true`: getent exits non-zero for an unresolved name; without this,
+    # set -e + pipefail would abort the deploy instead of just skipping it.
+    resolved="$(getent ahostsv4 "${d}" 2>/dev/null | awk 'NR==1{print $1}' || true)"
     if [[ -n "${resolved}" && ( -z "${my_ip}" || "${resolved}" == "${my_ip}" ) ]]; then
       domains+=(-d "${d}")
     else
