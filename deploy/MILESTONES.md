@@ -455,17 +455,29 @@ GitHub Actions `plan → apply → deploy`: terraform provisions the real Lights
 the deploy job SSHes in and runs `bootstrap.sh` — full stack live, no manual steps. Verified:
 static IP `34.231.3.91` attached, SSH in, `musilinda-api / app / blog / nginx` all `active`.
 
-**⏳ "Milestone prime" (owner, human-style): not yet.** The stack is up over **HTTP by IP**;
-the owner browsing it as a user over HTTPS still needs:
-1. **DNS** — `dev.musilinda.com`, `app.dev.musilinda.com`, `learn.dev.musilinda.com` → `34.231.3.91` (A records).
-2. **TLS** — once DNS resolves, one-time on the box:
-   `sudo certbot --nginx -d dev.musilinda.com -d app.dev.musilinda.com -d learn.dev.musilinda.com`.
+**✅ "Milestone prime" (owner, human-style): HIT (2026-08-17).** GoDaddy A records for
+`dev` / `app.dev` / `learn.dev.musilinda.com` → `34.231.3.91`; `setup_tls` (folded into
+`bootstrap.sh`) auto-issued a Let's Encrypt cert on redeploy (`Successfully received
+certificate` → HTTPS enabled for all three, `www.dev` correctly skipped as unresolved, auto-renew
+scheduled). Owner browsed `https://app.dev.musilinda.com` as a real user: created an account,
+sang an interval, **mic captured and `/api/analyze` scored it** — the one path never exercised on
+real AWS. End-to-end proven on live AWS: `git push → provision → deploy → HTTPS → working app +
+inference`.
 
-Until DNS+TLS, quick check without DNS:
-`curl -sI -H 'Host: app.dev.musilinda.com' http://34.231.3.91/`.
+**TLS is now hands-free in the deploy** (`bootstrap.sh` §9): idempotent, DNS-gated (skips names
+that don't resolve to the box, never aborts), reuses the cert on redeploys. Knobs: `ENABLE_TLS`,
+`TLS_EMAIL` in `secrets.env`.
 
-**Then: promote `dev → main` for the prod box** (same workflow, `prod` env, gated on the required
-reviewer) once the owner has eyeballed dev.
+**Remaining (not blocking; next session):**
+- **Blog page cross-service links** (owner flagged 2026-08-17) — same class of bug as the local
+  `.test` run: links in the blog/app point at another env's host (or hard-coded prod) instead of
+  the current env's `*.dev.musilinda.com`. Fix = make them env-driven off `$DOMAIN` (the same
+  `%VITE_LEARN_URL%`-style parameterization already used for the web landing CTA), so dev links
+  stay on dev. Deferred by owner.
+- **Promote `dev → main`** for the prod box (same workflow, `prod` env, gated on the required
+  reviewer) — needs GoDaddy A records for `app.` / `learn.` / apex `musilinda.com` + `www.` at
+  the prod box IP, and the prod cutover (fresh Replit DB dumps per CLAUDE.md §6).
+- Cosmetic: bump actions to `@v5` to silence the Node 20 deprecation warnings.
 
 **Follow-ups to commit** (Claude doesn't push these repos):
 - **web repo (required for a turnkey deploy; fix is in the working tree):** the two tailwind
