@@ -468,6 +468,18 @@ inference`.
 that don't resolve to the box, never aborts), reuses the cert on redeploys. Knobs: `ENABLE_TLS`,
 `TLS_EMAIL` in `secrets.env`.
 
+**Blog content parity fix (2026-08-23):** `learn.dev.musilinda.com` showed **no posts** — root
+cause: the deploy only ran `db:push` (schema), and blog content had only ever been created by the
+**manual docx re-ingest during the VM proof**, which was never part of the deploy. So a fresh box
+= empty `blog_posts` + empty blob store (the 20 `.docx` sources *do* ship in `blog/attached_assets/`,
+but nothing ingested them). Fix = a deterministic **seed snapshot** committed to the blog repo
+(`blog/seed/`: a data-only SQL dump of the 20 authored posts + their 37 extracted images, ~1 MB,
+pulled from the VM which held the owner-approved titles/icons/categories) loaded by a new
+idempotent `bootstrap.sh §6b seed_blog_content` — seeds **only when `blog_posts` is empty**, so it
+never clobbers CMS-added content. Verified on live dev: `/api/blog-posts` → 20, images 200
+`image/png` over HTTPS, re-run skips (guard). **To commit: root `deploy/bootstrap.sh` + new
+`blog/seed/` on `blog`'s `dev` branch.**
+
 **Remaining (not blocking; next session):**
 - **Blog page cross-service links** (owner flagged 2026-08-17) — same class of bug as the local
   `.test` run: links in the blog/app point at another env's host (or hard-coded prod) instead of

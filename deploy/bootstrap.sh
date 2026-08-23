@@ -254,6 +254,42 @@ build_web() {
 }
 
 # ---------------------------------------------------------------------------
+# 6b. Blog content seed — the authored 20 posts + images.
+#     db:push only creates the schema; the blog content was authored via docx
+#     re-ingest during the VM proof and is not otherwise part of the deploy, so
+#     a fresh box's blog is empty. This ships that authored result as a data
+#     snapshot (blog/seed/: a data-only SQL dump + the extracted images) and
+#     loads it. Idempotent + safe: seeds ONLY when blog_posts is empty, so it
+#     never clobbers content added later via the admin CMS.
+# ---------------------------------------------------------------------------
+seed_blog_content() {
+  local seed_dir="${SRC_ROOT}/blog/seed"
+  local seed_sql="${seed_dir}/blog_posts_seed.sql"
+  if [[ ! -f "${seed_sql}" ]]; then
+    warn "blog seed not found at ${seed_sql} — skipping content seed"
+    return 0
+  fi
+  local count
+  count="$(sudo -u postgres psql -d blog -tAc 'SELECT count(*) FROM blog_posts;' 2>/dev/null || echo 0)"
+  if [[ "${count}" != "0" ]]; then
+    log "Blog already has ${count} post(s) — skipping content seed"
+    return 0
+  fi
+  log "Seeding blog content (authored posts + images)"
+  # Root reads the file and pipes to postgres' stdin (avoids postgres needing
+  # traverse perms into the run-user's checkout). The dump carries its own
+  # sequence setval, so future admin uploads won't collide with seeded ids.
+  cat "${seed_sql}" | sudo -u postgres psql -d blog -v ON_ERROR_STOP=1 -q
+  # Stage the post images into the blob store (served as blogs/<id>/<file>).
+  if [[ -d "${seed_dir}/blob-store/blogs" ]]; then
+    install -d -o "${RUN_USER}" -g "${RUN_USER}" "${BLOB_STORAGE_DIR}/blogs"
+    cp -a "${seed_dir}/blob-store/blogs/." "${BLOB_STORAGE_DIR}/blogs/"
+    chown -R "${RUN_USER}:${RUN_USER}" "${BLOB_STORAGE_DIR}/blogs"
+  fi
+  log "Blog seed complete: $(sudo -u postgres psql -d blog -tAc 'SELECT count(*) FROM blog_posts;') posts"
+}
+
+# ---------------------------------------------------------------------------
 # 7. systemd units for the three long-running services
 # ---------------------------------------------------------------------------
 write_systemd_units() {
@@ -432,6 +468,7 @@ main() {
   build_app_musilinda
   build_blog
   build_web
+  seed_blog_content
   write_systemd_units
   write_nginx
   setup_tls
