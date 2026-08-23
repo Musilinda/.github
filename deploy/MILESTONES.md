@@ -480,15 +480,33 @@ never clobbers CMS-added content. Verified on live dev: `/api/blog-posts` → 20
 `image/png` over HTTPS, re-run skips (guard). **To commit: root `deploy/bootstrap.sh` + new
 `blog/seed/` on `blog`'s `dev` branch.**
 
-**Remaining (not blocking; next session):**
-- **Blog page cross-service links** (owner flagged 2026-08-17) — same class of bug as the local
-  `.test` run: links in the blog/app point at another env's host (or hard-coded prod) instead of
-  the current env's `*.dev.musilinda.com`. Fix = make them env-driven off `$DOMAIN` (the same
-  `%VITE_LEARN_URL%`-style parameterization already used for the web landing CTA), so dev links
-  stay on dev. Deferred by owner.
-- **Promote `dev → main`** for the prod box (same workflow, `prod` env, gated on the required
-  reviewer) — needs GoDaddy A records for `app.` / `learn.` / apex `musilinda.com` + `www.` at
-  the prod box IP, and the prod cutover (fresh Replit DB dumps per CLAUDE.md §6).
+**PR-plan OIDC role added (2026-08-23):** PR `terraform plan` jobs failed
+`sts:AssumeRoleWithWebIdentity` — a `pull_request` OIDC subject
+(`repo:Musilinda/.github:pull_request`) isn't trusted by the deploy role (branch/env subjects
+only). Fix (IaC + workflow together): a **separate least-privilege, read-only role**
+`musilinda-gha-plan` (`lightsail:Get*` + S3 state read only) trusted **only** by the PR subject;
+the plan job assumes it on `pull_request` (deploy role on `push`) and runs `terraform plan
+-lock=false`. Deploy/apply role unchanged; apply/deploy still gated on `push` + environment
+approval, so a PR can never mutate infra. Role applied to AWS (`terraform apply` in
+`deploy/terraform/bootstrap/` → `2 added`); workflow + IaC committed/pushed on `.github` `dev`.
+
+**Prod (main) status — PARTIAL, promotion gap (2026-08-23):** a `dev → main` merge fired a real
+**prod** deploy. It **failed at the web build** (`Cannot find module 'tailwindcss-animate'`)
+because **`main` was not fully promoted**: `web` and `app_musilinda` `main` branches are **2
+commits behind `dev`** (missing the M2 web build-fix and the interval-seed fix). `.github`, `api`,
+`blog` mains are current. A **half-built prod box exists** (`musilinda-prod`, IP `52.23.49.184`) —
+**parked** by owner decision (not torn down; dev is unaffected). Owner clarified they only want
+**dev** CI/CD for now. Do **not** revert main (a revert is another push → another failed prod
+run + messy history). **To finish prod later:** promote `web` + `app_musilinda` `dev → main`, add
+GoDaddy A records for `app.` / `learn.` / apex `musilinda.com` + `www.` at the prod IP, prod
+cutover (fresh Replit DB dumps per CLAUDE.md §6), then re-run the prod deploy.
+
+**Remaining (not blocking dev):**
+- **Finish/decide prod** (above): promote the two lagging repos + prod DNS/cutover, or destroy the
+  parked prod box (`terraform destroy` scoped to prod) if not proceeding soon.
+- **Blog page cross-service links** (owner flagged 2026-08-17) — links in the blog/app point at
+  another env's host instead of the current env's `*.dev.musilinda.com`. Fix = env-driven off
+  `$DOMAIN` (same `%VITE_LEARN_URL%`-style parameterization as the web landing CTA). Deferred.
 - Cosmetic: bump actions to `@v5` to silence the Node 20 deprecation warnings.
 
 **Follow-ups to commit** (Claude doesn't push these repos):
