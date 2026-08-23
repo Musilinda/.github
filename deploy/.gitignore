@@ -1,0 +1,6 @@
+# Real secrets — never commit. Only secrets.env.example is tracked.
+secrets.env
+terraform.tfvars
+*.tfstate
+*.tfstate.*
+.terraform/

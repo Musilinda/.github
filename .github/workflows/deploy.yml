@@ -1,0 +1,154 @@
+name: deploy
+
+# dev branch -> dev env, main branch -> prod env.
+# PR = plan only. Push = plan -> apply (box) -> deploy (SSH provision the stack).
+# prod apply/deploy wait on the `prod` GitHub Environment's required reviewer.
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev, main]
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  TF_DIR: deploy/terraform
+  ROLE_ARN: arn:aws:iam::389825051368:role/musilinda-gha-deploy
+  # Read-only role for PR plans — trusted only by the pull_request OIDC subject.
+  PLAN_ROLE_ARN: arn:aws:iam::389825051368:role/musilinda-gha-plan
+  ARTIFACTS_BUCKET: musilinda-tfstate # model weights under s3://<bucket>/artifacts/
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      env_name: ${{ steps.env.outputs.name }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - id: env
+        run: |
+          # On pull_request the branch is the PR base (github.base_ref); on push
+          # it's github.ref_name. main -> prod, everything else -> dev.
+          branch="${{ github.base_ref || github.ref_name }}"
+          if [ "$branch" = "main" ]; then
+            echo "name=prod" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=dev" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          # PRs assume the READ-ONLY plan role (pull_request subject); pushes use
+          # the deploy role (branch subject) since a push feeds the apply job.
+          role-to-assume: ${{ github.event_name == 'pull_request' && env.PLAN_ROLE_ARN || env.ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: terraform init
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform init -backend-config="key=${{ steps.env.outputs.name }}/terraform.tfstate"
+      - name: terraform plan
+        working-directory: ${{ env.TF_DIR }}
+        env:
+          TF_VAR_ssh_public_key: ${{ vars.SSH_PUBLIC_KEY }}
+        # -lock=false: the read-only PR-plan role can't write the S3 lock, and an
+        # advisory plan needs no lock. (apply, on push, still locks normally.)
+        run: terraform plan -lock=false -var-file="environments/${{ steps.env.outputs.name }}.tfvars"
+
+  apply:
+    needs: plan
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
+    outputs:
+      ip: ${{ steps.out.outputs.ip }}
+      domain: ${{ steps.out.outputs.domain }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: terraform init
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform init -backend-config="key=${{ needs.plan.outputs.env_name }}/terraform.tfstate"
+      - name: terraform apply
+        working-directory: ${{ env.TF_DIR }}
+        env:
+          TF_VAR_ssh_public_key: ${{ vars.SSH_PUBLIC_KEY }}
+        run: terraform apply -auto-approve -var-file="environments/${{ needs.plan.outputs.env_name }}.tfvars"
+      - id: out
+        working-directory: ${{ env.TF_DIR }}
+        run: |
+          echo "ip=$(terraform output -raw static_ip)" >> "$GITHUB_OUTPUT"
+          echo "domain=$(terraform output -raw domain)" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: [plan, apply]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
+    steps:
+      - name: Checkout infra
+        uses: actions/checkout@v4
+        with:
+          path: infra
+      - name: Checkout api
+        uses: actions/checkout@v4
+        with:
+          repository: Musilinda/api
+          ref: ${{ github.ref_name }}
+          path: src/api
+          token: ${{ secrets.ORG_REPO_TOKEN }}
+      - name: Checkout app_musilinda
+        uses: actions/checkout@v4
+        with:
+          repository: Musilinda/app_musilinda
+          ref: ${{ github.ref_name }}
+          path: src/app_musilinda
+          token: ${{ secrets.ORG_REPO_TOKEN }}
+      - name: Checkout blog
+        uses: actions/checkout@v4
+        with:
+          repository: Musilinda/blog
+          ref: ${{ github.ref_name }}
+          path: src/blog
+          token: ${{ secrets.ORG_REPO_TOKEN }}
+      - name: Checkout web
+        uses: actions/checkout@v4
+        with:
+          repository: Musilinda/web
+          ref: ${{ github.ref_name }}
+          path: src/web
+          token: ${{ secrets.ORG_REPO_TOKEN }}
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Pull model weights from S3
+        run: |
+          mkdir -p src/api/whisper_model
+          aws s3 cp "s3://${{ env.ARTIFACTS_BUCKET }}/artifacts/whisper_model/model.safetensors" src/api/whisper_model/model.safetensors
+          aws s3 cp "s3://${{ env.ARTIFACTS_BUCKET }}/artifacts/whisper_multihead_model.pt" src/api/whisper_multihead_model.pt
+      - name: Add SSH key
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+      - name: Deploy to box (SSH)
+        env:
+          BOX_IP: ${{ needs.apply.outputs.ip }}
+          DOMAIN: ${{ needs.apply.outputs.domain }}
+          SRC_DIR: ${{ github.workspace }}/src
+          DEPLOY_DIR: ${{ github.workspace }}/infra/deploy
+          MUSILINDA_DB_PASSWORD: ${{ secrets.MUSILINDA_DB_PASSWORD }}
+          BLOG_DB_PASSWORD: ${{ secrets.BLOG_DB_PASSWORD }}
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+        run: |
+          eval "$(ssh-agent -s)"
+          ssh-add ~/.ssh/deploy_key
+          bash infra/deploy/deploy-to-box.sh
