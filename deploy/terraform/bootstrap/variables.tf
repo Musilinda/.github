@@ -25,3 +25,9 @@ variable "allowed_subjects" {
     "repo:Musilinda/*:environment:prod",
   ]
 }
+
+variable "plan_subjects" {
+  description = "OIDC subjects allowed to assume the READ-ONLY PR-plan role. Only this repo's pull_request subject — PRs can plan, never apply."
+  type        = list(string)
+  default     = ["repo:Musilinda/.github:pull_request"]
+}

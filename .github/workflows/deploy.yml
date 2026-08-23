@@ -17,6 +17,8 @@ env:
   AWS_REGION: us-east-1
   TF_DIR: deploy/terraform
   ROLE_ARN: arn:aws:iam::389825051368:role/musilinda-gha-deploy
+  # Read-only role for PR plans — trusted only by the pull_request OIDC subject.
+  PLAN_ROLE_ARN: arn:aws:iam::389825051368:role/musilinda-gha-plan
   ARTIFACTS_BUCKET: musilinda-tfstate # model weights under s3://<bucket>/artifacts/
 
 jobs:
@@ -29,14 +31,19 @@ jobs:
       - uses: hashicorp/setup-terraform@v3
       - id: env
         run: |
-          if [ "${{ github.ref_name }}" = "main" ]; then
+          # On pull_request the branch is the PR base (github.base_ref); on push
+          # it's github.ref_name. main -> prod, everything else -> dev.
+          branch="${{ github.base_ref || github.ref_name }}"
+          if [ "$branch" = "main" ]; then
             echo "name=prod" >> "$GITHUB_OUTPUT"
           else
             echo "name=dev" >> "$GITHUB_OUTPUT"
           fi
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ env.ROLE_ARN }}
+          # PRs assume the READ-ONLY plan role (pull_request subject); pushes use
+          # the deploy role (branch subject) since a push feeds the apply job.
+          role-to-assume: ${{ github.event_name == 'pull_request' && env.PLAN_ROLE_ARN || env.ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
       - name: terraform init
         working-directory: ${{ env.TF_DIR }}
@@ -45,7 +52,9 @@ jobs:
         working-directory: ${{ env.TF_DIR }}
         env:
           TF_VAR_ssh_public_key: ${{ vars.SSH_PUBLIC_KEY }}
-        run: terraform plan -var-file="environments/${{ steps.env.outputs.name }}.tfvars"
+        # -lock=false: the read-only PR-plan role can't write the S3 lock, and an
+        # advisory plan needs no lock. (apply, on push, still locks normally.)
+        run: terraform plan -lock=false -var-file="environments/${{ steps.env.outputs.name }}.tfvars"
 
   apply:
     needs: plan

@@ -8,3 +8,8 @@ output "gha_role_arn" {
   description = "Role ARN Actions assumes via OIDC — set as workflow `role-to-assume`."
   value       = aws_iam_role.gha.arn
 }
+
+output "gha_plan_role_arn" {
+  description = "READ-ONLY PR-plan role ARN — set as the workflow plan job's role for pull_request (env PLAN_ROLE_ARN)."
+  value       = aws_iam_role.gha_plan.arn
+}

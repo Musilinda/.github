@@ -93,3 +93,59 @@ resource "aws_iam_role_policy" "gha" {
   role   = aws_iam_role.gha.id
   policy = data.aws_iam_policy_document.perms.json
 }
+
+# ---------------------------------------------------------------------------
+# PR-plan role — READ-ONLY, least-privilege. Trusted ONLY by this repo's
+# pull_request OIDC subject (var.plan_subjects), so PRs can run an advisory
+# `terraform plan` without any path to apply/deploy. The mutating deploy role
+# above stays trusted only by branch (dev/main) + environment subjects, so a
+# PR can never assume it.
+# ---------------------------------------------------------------------------
+data "aws_iam_policy_document" "plan_trust" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+    principals {
+      type        = "Federated"
+      identifiers = [aws_iam_openid_connect_provider.github.arn]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+    condition {
+      test     = "StringLike"
+      variable = "token.actions.githubusercontent.com:sub"
+      values   = var.plan_subjects
+    }
+  }
+}
+
+resource "aws_iam_role" "gha_plan" {
+  name               = "musilinda-gha-plan"
+  assume_role_policy = data.aws_iam_policy_document.plan_trust.json
+  tags               = { Project = "musilinda" }
+}
+
+# Read-only: describe Lightsail + read (never write) terraform state. The PR
+# plan job runs with `-lock=false`, so no S3 PutObject/DeleteObject is needed —
+# this role cannot mutate state or infrastructure.
+data "aws_iam_policy_document" "plan_perms" {
+  statement {
+    sid       = "LightsailReadOnly"
+    actions   = ["lightsail:Get*"]
+    resources = ["*"]
+  }
+  statement {
+    sid       = "TerraformStateReadOnly"
+    actions   = ["s3:ListBucket", "s3:GetObject"]
+    resources = [aws_s3_bucket.tfstate.arn, "${aws_s3_bucket.tfstate.arn}/*"]
+  }
+}
+
+resource "aws_iam_role_policy" "gha_plan" {
+  name   = "musilinda-gha-plan-perms"
+  role   = aws_iam_role.gha_plan.id
+  policy = data.aws_iam_policy_document.plan_perms.json
+}
