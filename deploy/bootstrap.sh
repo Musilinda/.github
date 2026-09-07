@@ -443,8 +443,12 @@ setup_tls() {
     return 0
   fi
 
+  # --expand: when DNS for a name (e.g. app.) propagates a beat after the first
+  # issuance, a later run requests a superset of the existing lineage's names;
+  # without --expand certbot aborts non-interactively (and since write_nginx has
+  # already rewritten an HTTP-only config, that abort would drop 443 entirely).
   if certbot --nginx "${domains[@]}" \
-      --non-interactive --agree-tos --keep-until-expiring --redirect \
+      --non-interactive --agree-tos --keep-until-expiring --expand --redirect \
       -m "${TLS_EMAIL}"; then
     systemctl reload nginx
     log "TLS active for:${domains[*]//-d/}"
