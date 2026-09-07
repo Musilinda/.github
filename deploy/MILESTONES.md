@@ -448,6 +448,36 @@ behavior documented above.
 
 ---
 
+## Prod cutover — Replit → AWS DNS repoint (2026-09-07) ✅ (live; final human eyeball pending)
+
+Owner directive: "migrate replit's hosting / prod dns so aws is prod now" — a **DNS/hosting
+cutover, not a data migration** (AWS prod runs on committed seeds; Replit DB not copied). Runbook:
+`deploy/PROD_CUTOVER.md`.
+
+- **Code:** `main` already at `dev` parity for the service repos; prod deploy (PR #2 → `main`,
+  run `34134861235`) built clean — the old web-build failure was gone.
+- **DNS (GoDaddy):** `@` / `www` / `app` / `learn` A records → `52.23.49.184` (prod box). Verified
+  resolving at the authoritative NS + `8.8.8.8`. (`www` newly added; `api`/`musilinda` stray
+  records are unrelated leftovers.)
+- **HTTPS:** valid Let's Encrypt cert now covers **all four** names; HTTP→HTTPS 301; app/blog/
+  marketing all 200; blog API 20 posts. Verified over HTTPS.
+- **Rollback still available:** Replit up as warm rollback; revert the 4 A records to
+  `34.111.179.208` (GoDaddy TTL 1h).
+
+**Incident + fix (certbot `--expand`):** the first TLS run issued a **3-name** cert (`app.` had
+propagated a beat late, so `setup_tls` skipped it). A later run then requested the 4-name superset;
+bootstrap's certbot call lacked `--expand`, so it **aborted non-interactively** — and because
+`write_nginx` rewrites an HTTP-only config *before* certbot re-adds the 443 blocks, that abort
+**dropped 443 entirely** (all HTTPS down briefly). Recovered by SSHing in and running certbot with
+`--expand` (cert now covers all 4, nginx reloaded). **Permanent fix committed to the working tree:**
+`deploy/bootstrap.sh setup_tls` now passes `--expand` (idempotent: once the cert covers the
+requested set, `--keep-until-expiring` keeps it). **To commit:** root `deploy/bootstrap.sh` on `dev`,
+then promote `dev → main`.
+
+**Remaining for prod:** (1) owner browses `https://app.musilinda.com` end-to-end (account + mic +
+`/api/analyze`) with Replit still up as rollback; (2) then decommission Replit; (3) commit the
+`--expand` bootstrap fix + promote.
+
 ## Current position
 
 **ALL 5 MILESTONES MET (M1–M3 earlier; M4 + M5 landed 2026-08-16).** A push to `dev` now drives
